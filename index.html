@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>US weather radar — Splitshot Weather starter</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #15161a; color: #eceef2;
+    font: 14px/1.5 ui-sans-serif, -apple-system, "Segoe UI", Roboto, system-ui, sans-serif; }
+  #map { position: absolute; inset: 0 0 76px 0; }
+  #bar { position: absolute; left: 0; right: 0; bottom: 0; height: 76px;
+    display: flex; align-items: center; gap: 12px; padding: 0 14px;
+    background: #1d1f24; border-top: 1px solid #2e3138; }
+  button { font: inherit; padding: 8px 14px; border-radius: 8px; cursor: pointer;
+    background: #5fbfa3; color: #0f1113; border: 0; font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  input[type=range] { flex: 1; accent-color: #5fbfa3; }
+  #stamp { font-variant-numeric: tabular-nums; color: #a2a8b4; min-width: 15ch; }
+  #stamp b { color: #eceef2; font-weight: 600; }
+  .fcst { color: #e2c840; }
+  #err { position: absolute; inset: 0; display: none; place-items: center; padding: 30px;
+    background: #15161a; text-align: center; }
+  #err div { max-width: 44ch; }
+  #err h2 { color: #e8705a; margin: 0 0 10px; }
+  #err a { color: #5fbfa3; }
+  code { background: #23262c; padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+<div id="bar">
+  <button id="play">Pause</button>
+  <input id="scrub" type="range" min="0" max="0" value="0" step="1" aria-label="Frame" />
+  <span id="stamp"></span>
+</div>
+
+<div id="err"><div>
+  <h2>Couldn't load radar</h2>
+  <p id="errmsg"></p>
+  <p>Put your key in <code>config.js</code>. Get one free at
+     <a href="https://splitshotweather.com">splitshotweather.com</a>.</p>
+</div></div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script type="module">
+import { API_KEY, API, PRODUCT } from "./config.js";
+
+const $ = (id) => document.getElementById(id);
+
+function fail(message) {
+  $("errmsg").textContent = message;
+  $("err").style.display = "grid";
+}
+
+if (!API_KEY || API_KEY === "PASTE_YOUR_KEY_HERE") {
+  fail("No API key set.");
+  throw new Error("no api key");
+}
+
+/**
+ * The manifest says which frames exist right now.
+ *
+ * Always read it rather than guessing timestamps from the clock: frames are
+ * published when the upstream data lands, which is not on a tidy schedule, and
+ * a guessed timestamp is a 404.
+ */
+const manifest = await fetch(`${API}/manifest/${PRODUCT}.json`, {
+  headers: { "x-api-key": API_KEY },
+}).then((r) => {
+  if (!r.ok) throw new Error(`manifest returned ${r.status}`);
+  return r.json();
+}).catch((e) => { fail(e.message); throw e; });
+
+// Observed frames, then the nowcast. `forecast` entries are objects with a
+// `ts`; `frames` are plain strings.
+const timeline = [
+  ...manifest.frames.map((ts) => ({ ts, forecast: false })),
+  ...(manifest.forecast ?? []).map((f) => ({ ts: f.ts, forecast: true })),
+];
+
+const map = new maplibregl.Map({
+  container: "map",
+  // A dark basemap from CARTO: free, no key, and a dark ground is what makes
+  // the radar ramp read - greens and yellows disappear against a light map.
+  // Swap in whatever basemap you already use; the radar layers below sit on
+  // top of any MapLibre style.
+  style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+  center: [-97, 38],
+  zoom: 3.6,
+  attributionControl: { customAttribution: "Radar © Splitshot Weather / NOAA" },
+});
+map.addControl(new maplibregl.NavigationControl(), "top-right");
+
+/**
+ * Every frame is added as its own source and layer, all of them invisible
+ * except the current one.
+ *
+ * The obvious approach - one source whose URL you rewrite - makes MapLibre
+ * tear down and refetch the whole tile set on every step, so scrubbing
+ * flickers and burns requests re-downloading frames you just had. Mounting
+ * them and switching `raster-opacity` is a GPU operation on tiles already in
+ * memory.
+ *
+ * The cost is that all frames load up front. With 24 observed frames that is
+ * real, so a production app usually mounts a window around the current frame
+ * rather than the whole timeline.
+ */
+const url = (ts, forecast) => {
+  const tpl = forecast ? manifest.forecastTileUrlTemplate : manifest.tileUrlTemplate;
+  // The key goes in the query string here because raster tiles are fetched by
+  // the map engine, which gives you no way to attach a header. Use the
+  // x-api-key header anywhere you control the request, as the manifest fetch
+  // above does.
+  return `${API}${tpl.replace("{ts}", ts)}?key=${encodeURIComponent(API_KEY)}`;
+};
+
+map.on("load", () => {
+  timeline.forEach((frame, i) => {
+    const id = `radar-${frame.ts}`;
+    map.addSource(id, {
+      type: "raster",
+      tiles: [url(frame.ts, frame.forecast)],
+      tileSize: 256,
+      maxzoom: manifest.maxZoom,
+    });
+    map.addLayer({
+      id: `${id}-layer`,
+      type: "raster",
+      source: id,
+      paint: {
+        "raster-opacity": i === 0 ? 0.85 : 0,
+        // Instant, because the fade would fight the opacity switching below.
+        "raster-opacity-transition": { duration: 0 },
+        "raster-resampling": "linear",
+      },
+    });
+  });
+  $("scrub").max = String(timeline.length - 1);
+  show(0);
+  play();
+});
+
+let current = 0;
+let timer = null;
+
+function show(i) {
+  const next = (i + timeline.length) % timeline.length;
+  map.setPaintProperty(`radar-${timeline[current].ts}-layer`, "raster-opacity", 0);
+  map.setPaintProperty(`radar-${timeline[next].ts}-layer`, "raster-opacity", 0.85);
+  current = next;
+  $("scrub").value = String(next);
+
+  const f = timeline[next];
+  // 20261026-2105 -> 2026-10-26 21:05Z
+  const t = `${f.ts.slice(0, 4)}-${f.ts.slice(4, 6)}-${f.ts.slice(6, 8)} ` +
+            `${f.ts.slice(9, 11)}:${f.ts.slice(11, 13)}Z`;
+  $("stamp").innerHTML = f.forecast
+    ? `<b>${t}</b> <span class="fcst">forecast</span>`
+    : `<b>${t}</b>`;
+}
+
+function play() {
+  // Hold the last frame a beat, or the loop snaps back and reads as a glitch
+  // rather than as the end of the sequence.
+  const last = current === timeline.length - 1;
+  timer = setTimeout(() => { show(current + 1); play(); }, last ? 1100 : 400);
+  $("play").textContent = "Pause";
+}
+
+function pause() {
+  clearTimeout(timer);
+  timer = null;
+  $("play").textContent = "Play";
+}
+
+$("play").addEventListener("click", () => (timer ? pause() : play()));
+$("scrub").addEventListener("input", (e) => { pause(); show(Number(e.target.value)); });
+</script>
+</body>
+</html>
