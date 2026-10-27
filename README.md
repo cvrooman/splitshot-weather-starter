@@ -5,6 +5,10 @@ JavaScript. No build step, no framework, no bundler.
 
 ![Animated US radar with a timeline scrubber running from observed frames into the nowcast](demo.gif)
 
+<sub>Real tiles from the API, composited at full colour depth. The basemap
+under them is Esri's dark canvas; `index.html` ships with CARTO's, so your
+ground will look slightly different. The radar is identical.</sub>
+
 Built on the [Splitshot Weather API](https://splitshotweather.com) — NOAA radar,
 rainfall, lightning and wind rendered as map tiles, plus point forecasts and
 history. This repo is the shortest path from an API key to something moving on a
