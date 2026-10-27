@@ -86,6 +86,7 @@ GET /manifest/{product}.json
 GET /tiles/{product}/{ts}/{z}/{x}/{y}.png
 GET /forecast/{lat},{lon}
 GET /history/{lat},{lon}/{iso8601}
+GET /points/lightning/{ts}.json      lightning as GeoJSON points
 GET /alerts                          active NWS alerts, as GeoJSON
 GET /alerts/{lat},{lon}              just the ones over one point
 ```
