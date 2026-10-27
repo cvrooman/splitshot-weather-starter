@@ -9,5 +9,5 @@ export const API_KEY = "PASTE_YOUR_KEY_HERE";
 export const API = "https://api.splitshotweather.com";
 
 // composite = radar reflectivity. Also available: qpe-1h, qpe-24h, lightning,
-// wind. Each has its own manifest at /manifest/<product>.json.
+// wind, temperature. Each has its own manifest at /manifest/<product>.json.
 export const PRODUCT = "composite";

@@ -10,7 +10,8 @@ under them is Esri's dark canvas; `index.html` ships with CARTO's, so your
 ground will look slightly different. The radar is identical.</sub>
 
 Built on the [Splitshot Weather API](https://splitshotweather.com) — NOAA radar,
-rainfall, lightning and wind rendered as map tiles, plus point forecasts and
+rainfall, lightning, wind and temperature rendered as map tiles, plus
+point forecasts and
 history. This repo is the shortest path from an API key to something moving on a
 screen.
 
@@ -88,7 +89,7 @@ GET /history/{lat},{lon}/{iso8601}
 ```
 
 Products: `composite` (radar reflectivity), `qpe-1h` and `qpe-24h` (rainfall
-accumulation), `lightning`, `wind`. Each has its own manifest, legend and
+accumulation), `lightning`, `wind`, `temperature`. Each has its own manifest, legend and
 cadence — change `PRODUCT` in `config.js` to try one.
 
 Full reference: [splitshotweather.com/docs.html](https://splitshotweather.com/docs.html)
