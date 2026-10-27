@@ -86,6 +86,8 @@ GET /manifest/{product}.json
 GET /tiles/{product}/{ts}/{z}/{x}/{y}.png
 GET /forecast/{lat},{lon}
 GET /history/{lat},{lon}/{iso8601}
+GET /alerts                          active NWS alerts, as GeoJSON
+GET /alerts/{lat},{lon}              just the ones over one point
 ```
 
 Products: `composite` (radar reflectivity), `qpe-1h` and `qpe-24h` (rainfall
